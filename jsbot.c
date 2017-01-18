@@ -154,106 +154,104 @@ static void jscb_quithandler(const char* nick, const char* mask, const char *msg
 static void jscb_botnick(const char* nick) {
 	jscb_strings_command("botnick", 1, nick);
 }
-
-static int joinhandler(char *chan, char* nick, char* mask) {
-	jscb_joinhandler(chan, nick, mask);
-	return 0;
-}
-
-static int parthandler(char *chan, char* nick, char* mask) {
-	jscb_parthandler(chan, nick, mask);
-	return 0;
-}
-
-static int quithandler(char* nick, char* mask, char *msg) {
-	jscb_quithandler(nick, mask, msg);
-	return 0;
-}
-
 static int on_joinself(const char* chan, const char* nick) {
 	jscb_onjoinself(chan, nick);
 	return 0;
 }
 
-static int msghandler(char* chan, char* nick, char* mask, char * msg) {
-	jscb_msghandler(chan, nick, mask, msg);
-	return 0;
+static void joinhandler(const char *chan, const char* nick, const char* mask, const char* dummy1, const char* dummy2) {
+	(void) dummy1; (void) dummy2;
+	jscb_joinhandler(chan, nick, mask);
 }
 
-static void noticehandler(char* dest, char* nick, char* mask, char * msg) {
+static void parthandler(const char *chan, const char* nick, const char* mask, const char* dummy1, const char* dummy2) {
+	(void) dummy1; (void) dummy2;
+	jscb_parthandler(chan, nick, mask);
+}
+
+static void quithandler(const char* nick, const char* mask, const char *msg, const char* dummy1, const char* dummy2) {
+	(void) dummy1; (void) dummy2;
+	jscb_quithandler(nick, mask, msg);
+}
+
+static void msghandler(const char* chan, const char* nick, const char* mask, const char * msg, const char* dummy1) {
+	(void) dummy1;
+	jscb_msghandler(chan, nick, mask, msg);
+}
+
+static void kickhandler(const char* nick, const char* mask, const char* whom, const char * chan, const char* msg) {
+}
+
+static void noticehandler(const char* dest, const char* nick, const char* mask, const char * msg, const char* dummy1) {
+	(void) dummy1;
 	jscb_noticehandler(dest, nick, mask, msg);
 	char decodebuf[512 * 4];
 	dprintf(2, "NOTICE@%s <%s(%s)> %s\n", dest, nick, mask, decode(msg, decodebuf));
-}
-
-static void prep_msg_handler(char *buf, size_t cmdpos) {
-	char chan[512];
-	char nick[512];
-	char mask[512];
-	char msg[512];
-	size_t i = 1;
-	while(buf[i] != '!') i++;
-	memcpy(nick, buf+1, i - 1);
-	nick[i-1] = 0;
-	while(buf[i] != ' ') i++;
-	memcpy(mask, buf+1, i - 1);
-	mask[i-1] = 0;
-	i = cmdpos + 8;
-	while(buf[i] != ' ') i++;
-	memcpy(chan, buf + cmdpos + 8, i - (cmdpos + 8));
-	chan[i - (cmdpos + 8)] = 0;
-	i += 2;
-	memcpy(msg, buf + i, strlen(buf) - i + 1);
-	msghandler(chan, nick, mask, msg);
-}
-
-void prep_notice_handler(char *buf, size_t cmdpos) {
-	char dest[512];
-	char nick[512];
-	char mask[512];
-	char msg[512];
-	char cmd[16];
-	split(buf+1, ' ', 4, mask, cmd, dest, msg);
-	size_t i = 0;
-	while(mask[i] != '!' && mask[i] != ' ') i++;
-	memcpy(nick, mask, i);
-	nick[i] = 0;
-	noticehandler(dest, nick, mask, msg+1 /*leading ":" */);
 }
 
 /* join: mask, cmd, chan
    part: mask, cmd, chan, :"msg"
    quit: mask, cmd, :msg
    kick: mask, cmd, chan, whom, :msg
-   :user!~name@mask.com PART #chan :"it stinks here"
+ notice: mask, cmd, dest, :msg
+privmsg: mask, cmd, dest, :msg
  */
-void prep_joinpart_handler(char *buf, size_t cmdpos) {
-	char mask[512];
-	char cmd[16];
-	char chan[512];
-	char nick[512];
-	split(buf+1, ' ', 3, mask, cmd, chan);
-	size_t i = 0;
-	while(mask[i] != '!' && mask[i] != ' ') i++;
-	memcpy(nick, mask, i);
-	nick[i] = 0;
-	if(!strcmp(cmd,"JOIN"))
-		joinhandler(chan, nick, mask);
-	else if(!strcmp(cmd, "PART"))
-		parthandler(chan, nick, mask);
-}
+enum action {
+	a_join = 0, a_part, a_quit, a_kick,
+	a_notice, a_privmsg
+};
+static const char action_args[] = {
+	[a_join] = 1, [a_part] = 2,
+	[a_quit] = 1, [a_kick] = 3,
+	[a_notice] = 2, [a_privmsg] = 2,
+};
+static const char actionarg_msgadd[][3] = { /* this is to add 1 to the msg argument so the leading ':' is skipped */
+	[a_join] = "\0\0\0", [a_part] = "\0\1\0",
+	[a_quit] = "\1\0\0", [a_kick] = "\0\0\1",
+	[a_notice] = "\0\1\0", [a_privmsg] = "\0\1\0",
+};
 
-void prep_quit_handler(char *buf, size_t cmdpos) {
+/* nick+mask always go together in that order, i.e. 0,1. */
+static const char action_order[][5] = {
+	[a_join]  ="\2\0\1\n\n", [a_part]   = "\2\0\1\3\n",
+	[a_quit]  ="\0\1\2\n\n", [a_kick]   = "\0\1\3\2\4",
+	[a_notice]="\2\0\1\3\n", [a_privmsg]= "\2\0\1\3\n",
+};
+typedef void (*dispatchfunc)(const char*,const char*,const char*,const char*,const char*);
+static const dispatchfunc dispatchtbl[]={
+	[a_join] = joinhandler, [a_part] = parthandler,
+	[a_quit] = quithandler, [a_kick] = kickhandler,
+	[a_notice] = noticehandler, [a_privmsg] = msghandler,
+};
+static const char *action_arg(enum action a, int pos, const char* args[]) {
+	int l = action_order[a][pos];
+	return l == '\n' ? 0 : args[l];
+}
+static void action_dispatch(enum action a, const char* args[]) {
+	const char *a0 = action_arg(a, 0, args);
+	const char *a1 = action_arg(a, 1, args);
+	const char *a2 = action_arg(a, 2, args);
+	const char *a3 = action_arg(a, 3, args);
+	const char *a4 = action_arg(a, 4, args);
+	dispatchtbl[a](a0, a1, a2, a3, a4);
+}
+static void prep_action_handler(char *buf, size_t cmdpos, enum action a) {
+	char nick[512];
 	char mask[512];
 	char cmd[16];
-	char msg[512];
-	char nick[512];
-	split(buf+1, ' ', 3, mask, cmd, msg);
+	char a1[512];
+	char a2[512];
+	char a3[512];
+	split(buf+1, ' ', 2+action_args[a], mask, cmd, a1, a2, a3);
 	size_t i = 0;
 	while(mask[i] != '!' && mask[i] != ' ') i++;
 	memcpy(nick, mask, i);
 	nick[i] = 0;
-	quithandler(nick, mask, msg+1 /*leading ":" */);
+	unsigned a1off = actionarg_msgadd[a][0];
+	unsigned a2off = actionarg_msgadd[a][1];
+	unsigned a3off = actionarg_msgadd[a][2];
+	const char* args[5] = {nick, mask, a1+a1off, a2+a2off, a3+a3off};
+	action_dispatch(a, args);
 }
 
 static int motd_finished() {
@@ -279,14 +277,19 @@ int read_cb(char* buf, size_t bufsize) {
 				while(!isspace(buf[j])) j++;
 				switch(j - i) {
 					case 4:
-						if(!memcmp(buf+i,"JOIN", 4) || !memcmp(buf+i,"PART", 4)) prep_joinpart_handler(buf, i);
-						else if(!memcmp(buf+i,"QUIT", 4)) prep_quit_handler(buf, i);
+						if(!memcmp(buf+i,"JOIN", 4))
+							prep_action_handler(buf, i, a_join);
+						else if(!memcmp(buf+i,"PART", 4))
+							prep_action_handler(buf, i, a_part);
+						else if(!memcmp(buf+i,"QUIT", 4)) prep_action_handler(buf, i, a_quit);
 						break;
 					case 7:
-						if(!memcmp(buf+i,"PRIVMSG", 7)) prep_msg_handler(buf, i);
+						if(!memcmp(buf+i,"PRIVMSG", 7))
+							prep_action_handler(buf, i, a_privmsg);
 						break;
 					case 6:
-						if(!memcmp(buf+i,"NOTICE", 6)) prep_notice_handler(buf, i);
+						if(!memcmp(buf+i,"NOTICE", 6))
+							prep_action_handler(buf, i, a_notice);
 					default:
 						break;
 				}
