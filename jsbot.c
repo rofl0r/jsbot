@@ -35,30 +35,6 @@
 #endif
 
 static const char hextab[] = "0123456789abcdef";
-static char* encode(const char *in, char* out) {
-	const unsigned char *pi = (void*)in;
-	unsigned char *po = (void*)out;
-	while(*pi) {
-		if(*pi != '\\') *po++ = *pi++;
-		else {
-			pi++;
-			if(*pi == 'x') {
-				pi++;
-				if(!*pi) break;
-				const char *pos;
-				pos = strchr(hextab, *pi);
-				if(pos)	*po = (pos - hextab) << 4;
-				pi++;
-				if(!*pi) break;
-				pos = strchr(hextab, *pi);
-				*po |= pos - hextab;
-				po++; pi++;
-			}
-		}
-	}
-	*po = 0;
-	return (char*) out;
-}
 
 static char* decode(const char *in, char* out) {
 	const unsigned char* pi = (void*)in;
