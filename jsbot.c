@@ -136,103 +136,26 @@ static int use_ssl;
 
 static int want_quit;
 
-static int eval_print(js_State *J, const char *source)
-{
-	if (js_ploadstring(J, "[string]", source)) {
-		fprintf(stderr, "%s\n", js_tostring(J, -1));
-		js_pop(J, 1);
-		return 1;
-	}
-	js_pushglobal(J);
-	if (js_pcall(J, 0)) {
-		fprintf(stderr, "%s\n", js_tostring(J, -1));
-		js_pop(J, 1);
-		return 1;
-	}
-	if (js_isdefined(J, -1))
-		printf("%s\n", js_tostring(J, -1));
-	js_pop(J, 1);
-	return 0;
-}
-
 static js_State *J;
-/* workbuf must be 1+(3x the size of s), i.e. max 1+(3*512) for IRC */
-static char* encode_js_string(const char* s, char *workbuf) {
-	const char *p = s;
-	char *o = workbuf;
-	int ch;
-	while(1) {
-		switch(*p) {
-			case 0:
-				*o = *p;
-				goto break_loop;
-			case '\'': case '"': case '\\':
-				*(o++) = '\\';
-				*(o++) = *p;
-				break;
-			case '\n':
-				*(o++) = '\\';
-				*(o++) = 'n';
-				break;
-			case '\r':
-				*(o++) = '\\';
-				*(o++) = 'r';
-				break;
-			case 0x20:
-				if((ch = *(p+1)) == 0x28 || (ch = *(p+1)) == 0x29) {
-					*(o++) = '\\';
-					*(o++) = 'u';
-					*(o++) = '2';
-					*(o++) = '0';
-					*(o++) = '2';
-					*(o++) = (ch == 0x28) ? '8' : '9';
-					p++;
-				} else *(o++) = *p;
-				break;
-			default:
-				*(o++) = *p;
-		}
-		p++;
-	}
-break_loop:
-	return workbuf;
-}
 
 static void jscb_strings_command(const char* cmd, int args, ...) {
-	char buf[1024];
-	char eb1[512*3], eb2[512*3], eb3[512*3], eb4[512*3];
-	const char *v1, *v2, *v3, *v4;
+	int i;
 	va_list ap;
 	va_start(ap, args);
-	switch(args) {
-		case 1:
-			v1 = va_arg(ap, const char*);
-			snprintf(buf, sizeof buf, "%s('%s');", cmd, encode_js_string(v1, eb1));
-			break;
-		case 2:
-			v1 = va_arg(ap, const char*);
-			v2 = va_arg(ap, const char*);
-			snprintf(buf, sizeof buf, "%s('%s', '%s');", cmd, encode_js_string(v1, eb1), encode_js_string(v2, eb2));
-		break;
-			case 3:
-			v1 = va_arg(ap, const char*);
-			v2 = va_arg(ap, const char*);
-			v3 = va_arg(ap, const char*);
-			snprintf(buf, sizeof buf, "%s('%s', '%s', '%s');", cmd, encode_js_string(v1, eb1), encode_js_string(v2, eb2), encode_js_string(v3, eb3));
-			break;
-		case 4:
-			v1 = va_arg(ap, const char*);
-			v2 = va_arg(ap, const char*);
-			v3 = va_arg(ap, const char*);
-			v4 = va_arg(ap, const char*);
-			snprintf(buf, sizeof buf, "%s('%s', '%s', '%s', '%s');", cmd, encode_js_string(v1, eb1), encode_js_string(v2, eb2), encode_js_string(v3, eb3), encode_js_string(v4, eb4));
-		break;
+	js_getglobal(J, cmd);
+	js_pushnull(J);
+	for (i = 0; i < args; ++i) {
+		const char *a = va_arg(ap, const char *);
+		js_pushstring(J, a);
 	}
 	va_end(ap);
-	eval_print(J, buf);
+	if (js_pcall(J, args))
+		dprintf(2, "error calling %s: %s\n", cmd, js_tostring(J, -1));
+	js_pop(J, 1);
 }
+
 static void jscb_onconnect(void) {
-	eval_print(J, "connect();");
+	jscb_strings_command("connect", 0);
 }
 static void jscb_onjoinself(const char* chan, const char* nick) {
 	jscb_strings_command("selfjoin", 2, chan, nick);
