@@ -500,9 +500,10 @@ conn:
 
 	while(!want_quit) {
 		char line[512];
+		char decodebuf[512*4];
 		chk(rsirc_process(irc, line, &rcvd), goto conn);
 		if(rcvd) {
-			dprintf(2, "LEN %zu - %s\n", rcvd, line);
+			dprintf(2, "LEN %zu - %s\n", rcvd, decode(line, decodebuf));
 			chk(read_cb(line, sizeof line), goto conn);
 		}
 
