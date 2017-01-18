@@ -236,7 +236,10 @@ int read_cb(char* buf, size_t bufsize) {
 							prep_action_handler(buf, i, a_join);
 						else if(!memcmp(buf+i,"PART", 4))
 							prep_action_handler(buf, i, a_part);
-						else if(!memcmp(buf+i,"QUIT", 4)) prep_action_handler(buf, i, a_quit);
+						else if(!memcmp(buf+i,"QUIT", 4))
+							prep_action_handler(buf, i, a_quit);
+						else if(!memcmp(buf+i,"KICK", 4))
+							prep_action_handler(buf, i, a_kick);
 						break;
 					case 7:
 						if(!memcmp(buf+i,"PRIVMSG", 7))
