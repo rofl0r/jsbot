@@ -516,7 +516,6 @@ int main(int argc, char** argv) {
 	}
 
 	size_t rcvd;
-	int newvalues = 0;
 
 	rocksock_init_ssl();
 
