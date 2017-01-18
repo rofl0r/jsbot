@@ -136,57 +136,12 @@ static void jscb_onconnect(void) {
 static void jscb_onjoinself(const char* chan, const char* nick) {
 	jscb_strings_command("selfjoin", 2, chan, nick);
 }
-static void jscb_msghandler(const char* chan, const char* nick, const char* mask, const char * msg) {
-	jscb_strings_command("msghandler", 4, chan, nick, mask, msg);
-}
-static void jscb_noticehandler(const char* dest, const char* nick, const char* mask, const char * msg) {
-	jscb_strings_command("noticehandler", 4, dest, nick, mask, msg);
-}
-static void jscb_joinhandler(const char *chan, const char* nick, const char* mask) {
-	jscb_strings_command("joinhandler", 3, chan, nick, mask);
-}
-static void jscb_parthandler(const char *chan, const char* nick, const char* mask, const char* msg) {
-	jscb_strings_command("parthandler", 4, chan, nick, mask, msg);
-}
-static void jscb_quithandler(const char* nick, const char* mask, const char *msg) {
-	jscb_strings_command("quithandler", 3, nick, mask, msg);
-}
 static void jscb_botnick(const char* nick) {
 	jscb_strings_command("botnick", 1, nick);
 }
 static int on_joinself(const char* chan, const char* nick) {
 	jscb_onjoinself(chan, nick);
 	return 0;
-}
-
-static void joinhandler(const char *chan, const char* nick, const char* mask, const char* dummy1, const char* dummy2) {
-	(void) dummy1; (void) dummy2;
-	jscb_joinhandler(chan, nick, mask);
-}
-
-static void parthandler(const char *chan, const char* nick, const char* mask, const char* msg, const char* dummy1) {
-	(void) dummy1;
-	jscb_parthandler(chan, nick, mask, msg);
-}
-
-static void quithandler(const char* nick, const char* mask, const char *msg, const char* dummy1, const char* dummy2) {
-	(void) dummy1; (void) dummy2;
-	jscb_quithandler(nick, mask, msg);
-}
-
-static void msghandler(const char* chan, const char* nick, const char* mask, const char * msg, const char* dummy1) {
-	(void) dummy1;
-	jscb_msghandler(chan, nick, mask, msg);
-}
-
-static void kickhandler(const char* nick, const char* mask, const char* whom, const char * chan, const char* msg) {
-}
-
-static void noticehandler(const char* dest, const char* nick, const char* mask, const char * msg, const char* dummy1) {
-	(void) dummy1;
-	jscb_noticehandler(dest, nick, mask, msg);
-	char decodebuf[512 * 4];
-	dprintf(2, "NOTICE@%s <%s(%s)> %s\n", dest, nick, mask, decode(msg, decodebuf));
 }
 
 /* join: mask, cmd, chan
@@ -217,11 +172,10 @@ static const char action_order[][5] = {
 	[a_quit]  ="\0\1\2\n\n", [a_kick]   = "\0\1\3\2\4",
 	[a_notice]="\2\0\1\3\n", [a_privmsg]= "\2\0\1\3\n",
 };
-typedef void (*dispatchfunc)(const char*,const char*,const char*,const char*,const char*);
-static const dispatchfunc dispatchtbl[]={
-	[a_join] = joinhandler, [a_part] = parthandler,
-	[a_quit] = quithandler, [a_kick] = kickhandler,
-	[a_notice] = noticehandler, [a_privmsg] = msghandler,
+static const char dispatchtbl[][14]={
+	[a_join] = "joinhandler", [a_part] = "parthandler",
+	[a_quit] = "quithandler", [a_kick] = "kickhandler",
+	[a_notice] = "noticehandler", [a_privmsg] = "msghandler",
 };
 static const char *action_arg(enum action a, int pos, const char* args[]) {
 	int l = action_order[a][pos];
@@ -233,7 +187,7 @@ static void action_dispatch(enum action a, const char* args[]) {
 	const char *a2 = action_arg(a, 2, args);
 	const char *a3 = action_arg(a, 3, args);
 	const char *a4 = action_arg(a, 4, args);
-	dispatchtbl[a](a0, a1, a2, a3, a4);
+	jscb_strings_command(dispatchtbl[a], action_args[a]+2, a0, a1, a2, a3, a4);
 }
 static void prep_action_handler(char *buf, size_t cmdpos, enum action a) {
 	char nick[512];
