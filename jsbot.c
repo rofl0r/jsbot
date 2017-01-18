@@ -70,7 +70,7 @@ static int split(const char *in, char sep, int splitcount, ...) {
 		i++;
 	}
 	if(splitcount) {
-                char * out = va_arg(ap, char*);
+		char * out = va_arg(ap, char*);
 		strcpy(out, start);
 	}
 	ret:
