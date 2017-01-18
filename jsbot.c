@@ -145,8 +145,8 @@ static void jscb_noticehandler(const char* dest, const char* nick, const char* m
 static void jscb_joinhandler(const char *chan, const char* nick, const char* mask) {
 	jscb_strings_command("joinhandler", 3, chan, nick, mask);
 }
-static void jscb_parthandler(const char *chan, const char* nick, const char* mask) {
-	jscb_strings_command("parthandler", 3, chan, nick, mask);
+static void jscb_parthandler(const char *chan, const char* nick, const char* mask, const char* msg) {
+	jscb_strings_command("parthandler", 4, chan, nick, mask, msg);
 }
 static void jscb_quithandler(const char* nick, const char* mask, const char *msg) {
 	jscb_strings_command("quithandler", 3, nick, mask, msg);
@@ -164,9 +164,9 @@ static void joinhandler(const char *chan, const char* nick, const char* mask, co
 	jscb_joinhandler(chan, nick, mask);
 }
 
-static void parthandler(const char *chan, const char* nick, const char* mask, const char* dummy1, const char* dummy2) {
-	(void) dummy1; (void) dummy2;
-	jscb_parthandler(chan, nick, mask);
+static void parthandler(const char *chan, const char* nick, const char* mask, const char* msg, const char* dummy1) {
+	(void) dummy1;
+	jscb_parthandler(chan, nick, mask, msg);
 }
 
 static void quithandler(const char* nick, const char* mask, const char *msg, const char* dummy1, const char* dummy2) {
@@ -242,14 +242,15 @@ static void prep_action_handler(char *buf, size_t cmdpos, enum action a) {
 	char a1[512];
 	char a2[512];
 	char a3[512];
+	size_t i;
+	a1[0] = a2[0] = a3[0] = i = 0;
 	split(buf+1, ' ', 2+action_args[a], mask, cmd, a1, a2, a3);
-	size_t i = 0;
 	while(mask[i] != '!' && mask[i] != ' ') i++;
 	memcpy(nick, mask, i);
 	nick[i] = 0;
-	unsigned a1off = actionarg_msgadd[a][0];
-	unsigned a2off = actionarg_msgadd[a][1];
-	unsigned a3off = actionarg_msgadd[a][2];
+	unsigned a1off = a1[0] ? actionarg_msgadd[a][0] : 0;
+	unsigned a2off = a2[0] ? actionarg_msgadd[a][1] : 0;
+	unsigned a3off = a3[0] ? actionarg_msgadd[a][2] : 0;
 	const char* args[5] = {nick, mask, a1+a1off, a2+a2off, a3+a3off};
 	action_dispatch(a, args);
 }
