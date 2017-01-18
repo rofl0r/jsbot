@@ -63,9 +63,9 @@ static int split(const char *in, char sep, int splitcount, ...) {
 		if(!out && !splitcount) break;
 		size_t idx = 0;
 		while(start[idx] && start[idx] != sep) idx++;
-		if(!start[idx]) { r = 0; goto ret; }
 		memcpy(out, start, idx);
 		out[idx] = 0;
+		if(!start[idx]) { r = 0; goto ret; }
 		start += idx + 1;
 		i++;
 	}
