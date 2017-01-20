@@ -133,15 +133,8 @@ static void jscb_strings_command(const char* cmd, int args, ...) {
 static void jscb_onconnect(void) {
 	jscb_strings_command("connect", 0);
 }
-static void jscb_onjoinself(const char* chan, const char* nick) {
-	jscb_strings_command("selfjoin", 2, chan, nick);
-}
 static void jscb_botnick(const char* nick) {
 	jscb_strings_command("botnick", 1, nick);
-}
-static int on_joinself(const char* chan, const char* nick) {
-	jscb_onjoinself(chan, nick);
-	return 0;
 }
 
 /* join: mask, cmd, chan
@@ -151,36 +144,42 @@ static int on_joinself(const char* chan, const char* nick) {
  notice: mask, cmd, dest, :msg
 privmsg: mask, cmd, dest, :msg
     353: mask, cmd, who,  =,    chan, :names
+    366: mask, cmd, nick, chan, :End of /NAMES list.
  */
 enum action {
 	a_join = 0, a_part, a_quit, a_kick,
-	a_notice, a_privmsg, a_names
+	a_notice, a_privmsg, a_names, a_endnames
 };
+/* number of IRC arguments after the obligatory mask, cmd */
 static const char action_args[] = {
 	[a_join] = 1, [a_part] = 2,
 	[a_quit] = 1, [a_kick] = 3,
 	[a_notice] = 2, [a_privmsg] = 2,
-	[a_names] = 4,
+	[a_names] = 4, [a_endnames] = 3,
 };
+/* we care only about up to 4 IRC arguments after mask, cmd */
 static const char actionarg_msgadd[][4] = { /* this is to add 1 to the msg argument so the leading ':' is skipped */
 	[a_join] = "\0\0\0\0", [a_part] = "\0\1\0\0",
 	[a_quit] = "\1\0\0\0", [a_kick] = "\0\0\1\0",
 	[a_notice] = "\0\1\0\0", [a_privmsg] = "\0\1\0\0",
-	[a_names] = "\0\0\0\1",
+	[a_names] = "\0\0\0\1", [a_endnames] = "\0\0\0\0"
 };
 
-/* nick+mask always go together in that order, i.e. 0,1. */
+/* we pass up to 5 arguments to dispatch functions.
+   argument 0 is always nick, which is derived from mask.
+   the original CMD argument is dropped (for example KICK or 366)
+   nick+mask always go together in that order, i.e. 0,1. */
 static const char action_order[][5] = {
 	[a_join]  ="\2\0\1\n\n", [a_part]   = "\2\0\1\3\n",
 	[a_quit]  ="\0\1\2\n\n", [a_kick]   = "\0\1\3\2\4",
 	[a_notice]="\2\0\1\3\n", [a_privmsg]= "\2\0\1\3\n",
-	[a_names] ="\4\5\n\n\n",
+	[a_names] ="\4\5\n\n\n", [a_endnames]="\3\2\n\n\n",
 };
 static const char dispatchtbl[][14]={
 	[a_join] = "joinhandler", [a_part] = "parthandler",
 	[a_quit] = "quithandler", [a_kick] = "kickhandler",
 	[a_notice] = "noticehandler", [a_privmsg] = "msghandler",
-	[a_names] = "nameshandler",
+	[a_names] = "nameshandler", [a_endnames] = "selfjoin", /*we use end of names as a signal that we're now in that chan*/
 };
 static unsigned action_dispatch_argcount(enum action a) {
 	unsigned i = 0;
@@ -236,7 +235,7 @@ void switch_names(void) {
 
 int read_cb(char* buf, size_t bufsize) {
 	if(buf[0] == ':') {
-		size_t i = 0, j, k;
+		size_t i = 0, j;
 		while(!isspace(buf[i])) i++;
 		int cmd = atoi(buf+i);
 		switch(cmd) {
@@ -290,15 +289,7 @@ int read_cb(char* buf, size_t bufsize) {
 				prep_action_handler(buf, i, a_names);
 				break;
 			case 366:
-				while(!isspace(buf[++i]));
-				i++;
-				k = i;
-				while(!isspace(buf[++i]));
-				buf[i] = 0;
-				j = ++i;
-				while(!isspace(buf[++i]));
-				buf[i] = 0;
-				on_joinself(buf + j, buf + k);
+				prep_action_handler(buf, i, a_endnames);
 				break;
 		}
 	} else {
