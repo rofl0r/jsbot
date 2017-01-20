@@ -1,7 +1,7 @@
 jsbot - an efficient javascript IRC bot
 =======================================
 
-this is a very space-efficient of a javascript IRC bot.
+this is a very space- and memory-efficient javascript IRC bot.
 the core is written in C and uses [mujs][0] as a tiny javascript interpreter,
 and [rocksock][1] as a very efficient network socket implementation with
 SSL support.
