@@ -150,20 +150,23 @@ static int on_joinself(const char* chan, const char* nick) {
    kick: mask, cmd, chan, whom, :msg
  notice: mask, cmd, dest, :msg
 privmsg: mask, cmd, dest, :msg
+    353: mask, cmd, who,  =,    chan, :names
  */
 enum action {
 	a_join = 0, a_part, a_quit, a_kick,
-	a_notice, a_privmsg
+	a_notice, a_privmsg, a_names
 };
 static const char action_args[] = {
 	[a_join] = 1, [a_part] = 2,
 	[a_quit] = 1, [a_kick] = 3,
 	[a_notice] = 2, [a_privmsg] = 2,
+	[a_names] = 4,
 };
-static const char actionarg_msgadd[][3] = { /* this is to add 1 to the msg argument so the leading ':' is skipped */
-	[a_join] = "\0\0\0", [a_part] = "\0\1\0",
-	[a_quit] = "\1\0\0", [a_kick] = "\0\0\1",
-	[a_notice] = "\0\1\0", [a_privmsg] = "\0\1\0",
+static const char actionarg_msgadd[][4] = { /* this is to add 1 to the msg argument so the leading ':' is skipped */
+	[a_join] = "\0\0\0\0", [a_part] = "\0\1\0\0",
+	[a_quit] = "\1\0\0\0", [a_kick] = "\0\0\1\0",
+	[a_notice] = "\0\1\0\0", [a_privmsg] = "\0\1\0\0",
+	[a_names] = "\0\0\0\1",
 };
 
 /* nick+mask always go together in that order, i.e. 0,1. */
@@ -171,12 +174,19 @@ static const char action_order[][5] = {
 	[a_join]  ="\2\0\1\n\n", [a_part]   = "\2\0\1\3\n",
 	[a_quit]  ="\0\1\2\n\n", [a_kick]   = "\0\1\3\2\4",
 	[a_notice]="\2\0\1\3\n", [a_privmsg]= "\2\0\1\3\n",
+	[a_names] ="\4\5\n\n\n",
 };
 static const char dispatchtbl[][14]={
 	[a_join] = "joinhandler", [a_part] = "parthandler",
 	[a_quit] = "quithandler", [a_kick] = "kickhandler",
 	[a_notice] = "noticehandler", [a_privmsg] = "msghandler",
+	[a_names] = "nameshandler",
 };
+static unsigned action_dispatch_argcount(enum action a) {
+	unsigned i = 0;
+	while(i < sizeof(action_order[0]) && action_order[a][i]!='\n') i++;
+	return i;
+}
 static const char *action_arg(enum action a, int pos, const char* args[]) {
 	int l = action_order[a][pos];
 	return l == '\n' ? 0 : args[l];
@@ -187,7 +197,8 @@ static void action_dispatch(enum action a, const char* args[]) {
 	const char *a2 = action_arg(a, 2, args);
 	const char *a3 = action_arg(a, 3, args);
 	const char *a4 = action_arg(a, 4, args);
-	jscb_strings_command(dispatchtbl[a], action_args[a]+2, a0, a1, a2, a3, a4);
+	unsigned argcount = action_dispatch_argcount(a);
+	jscb_strings_command(dispatchtbl[a], argcount, a0, a1, a2, a3, a4);
 }
 static void prep_action_handler(char *buf, size_t cmdpos, enum action a) {
 	char nick[512];
@@ -196,16 +207,18 @@ static void prep_action_handler(char *buf, size_t cmdpos, enum action a) {
 	char a1[512];
 	char a2[512];
 	char a3[512];
+	char a4[512];
 	size_t i;
-	a1[0] = a2[0] = a3[0] = i = 0;
-	split(buf+1, ' ', 2+action_args[a], mask, cmd, a1, a2, a3);
+	a1[0] = a2[0] = a3[0] = a4[0] = i = 0;
+	split(buf+1, ' ', 2+action_args[a], mask, cmd, a1, a2, a3, a4);
 	while(mask[i] != '!' && mask[i] != ' ') i++;
 	memcpy(nick, mask, i);
 	nick[i] = 0;
 	unsigned a1off = a1[0] ? actionarg_msgadd[a][0] : 0;
 	unsigned a2off = a2[0] ? actionarg_msgadd[a][1] : 0;
 	unsigned a3off = a3[0] ? actionarg_msgadd[a][2] : 0;
-	const char* args[5] = {nick, mask, a1+a1off, a2+a2off, a3+a3off};
+	unsigned a4off = a4[0] ? actionarg_msgadd[a][3] : 0;
+	const char* args[6] = {nick, mask, a1+a1off, a2+a2off, a3+a3off, a4+a4off};
 	action_dispatch(a, args);
 }
 
@@ -273,6 +286,9 @@ int read_cb(char* buf, size_t bufsize) {
 				}
 				break;
 			default: break;
+			case 353:
+				prep_action_handler(buf, i, a_names);
+				break;
 			case 366:
 				while(!isspace(buf[++i]));
 				i++;
