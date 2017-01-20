@@ -145,10 +145,12 @@ static void jscb_botnick(const char* nick) {
 privmsg: mask, cmd, dest, :msg
     353: mask, cmd, who,  =,    chan, :names
     366: mask, cmd, nick, chan, :End of /NAMES list.
+   nick: mask, cmd, :newname
  */
 enum action {
 	a_join = 0, a_part, a_quit, a_kick,
-	a_notice, a_privmsg, a_names, a_endnames
+	a_notice, a_privmsg, a_names, a_endnames,
+	a_nick,
 };
 /* number of IRC arguments after the obligatory mask, cmd */
 static const char action_args[] = {
@@ -156,13 +158,15 @@ static const char action_args[] = {
 	[a_quit] = 1, [a_kick] = 3,
 	[a_notice] = 2, [a_privmsg] = 2,
 	[a_names] = 4, [a_endnames] = 3,
+	[a_nick] = 1,
 };
 /* we care only about up to 4 IRC arguments after mask, cmd */
 static const char actionarg_msgadd[][4] = { /* this is to add 1 to the msg argument so the leading ':' is skipped */
 	[a_join] = "\0\0\0\0", [a_part] = "\0\1\0\0",
 	[a_quit] = "\1\0\0\0", [a_kick] = "\0\0\1\0",
 	[a_notice] = "\0\1\0\0", [a_privmsg] = "\0\1\0\0",
-	[a_names] = "\0\0\0\1", [a_endnames] = "\0\0\0\0"
+	[a_names] = "\0\0\0\1", [a_endnames] = "\0\0\0\0",
+	[a_nick] = "\1\0\0\0",
 };
 
 /* we pass up to 5 arguments to dispatch functions.
@@ -174,12 +178,14 @@ static const char action_order[][5] = {
 	[a_quit]  ="\0\1\2\n\n", [a_kick]   = "\0\1\3\2\4",
 	[a_notice]="\2\0\1\3\n", [a_privmsg]= "\2\0\1\3\n",
 	[a_names] ="\4\5\n\n\n", [a_endnames]="\3\2\n\n\n",
+	[a_nick] = "\0\2\n\n\n",
 };
 static const char dispatchtbl[][14]={
 	[a_join] = "joinhandler", [a_part] = "parthandler",
 	[a_quit] = "quithandler", [a_kick] = "kickhandler",
 	[a_notice] = "noticehandler", [a_privmsg] = "msghandler",
 	[a_names] = "nameshandler", [a_endnames] = "selfjoin", /*we use end of names as a signal that we're now in that chan*/
+	[a_nick] = "nickchange",
 };
 static unsigned action_dispatch_argcount(enum action a) {
 	unsigned i = 0;
@@ -252,6 +258,8 @@ int read_cb(char* buf, size_t bufsize) {
 							prep_action_handler(buf, i, a_quit);
 						else if(!memcmp(buf+i,"KICK", 4))
 							prep_action_handler(buf, i, a_kick);
+						else if(!memcmp(buf+i,"NICK", 4))
+							prep_action_handler(buf, i, a_nick);
 						break;
 					case 7:
 						if(!memcmp(buf+i,"PRIVMSG", 7))
