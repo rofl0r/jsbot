@@ -239,11 +239,18 @@ void switch_names(void) {
 	rsirc_sendlinef(irc, "NICK %s", own_nick);
 }
 
+static unsigned atou(const char *n) {
+	unsigned r = 0;
+	while(isspace(*n)) n++;
+	while(isdigit(*n)) r = r*10+(*(n++)-'0');
+	return r;
+}
+
 int read_cb(char* buf, size_t bufsize) {
 	if(buf[0] == ':') {
 		size_t i = 0, j;
 		while(!isspace(buf[i])) i++;
-		int cmd = atoi(buf+i);
+		unsigned cmd = atou(buf+i);
 		switch(cmd) {
 			case 0: /* no number */
 				j = ++i;
@@ -292,6 +299,8 @@ int read_cb(char* buf, size_t bufsize) {
 					sleep(30);
 				}
 				break;
+			case 66:
+				if(i >= 512) dprintf(2, "caught canary bird\n");
 			default: break;
 			case 353:
 				prep_action_handler(buf, i, a_names);
@@ -474,11 +483,14 @@ int main(int argc, char** argv) {
 conn:
 	while(!connect_it());
 
+	char line[512+4] = {0};
+	static const char canary[4] = " 66\0";
+
 	while(!want_quit) {
-		char line[512];
 		char decodebuf[512*4];
 		chk(rsirc_process(irc, line, &rcvd), goto conn);
 		if(rcvd) {
+			memcpy(line+512, canary, 4); /* protect against evil server */
 			dprintf(2, "LEN %zu - %s\n", rcvd, decode(line, decodebuf));
 			chk(read_cb(line, sizeof line), goto conn);
 		}
