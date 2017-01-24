@@ -65,6 +65,16 @@ then compile jsbot.c
 this is to give you an idea what needs to be done, it may work slightly
 different in your case.
 
+legal stuff
+-----------
+
+the code within this project is licensed under the GNU GPLv2 or later.
+the mujs library on which it depends is licensed under the GNU AGPLv3.
+due to the viral nature of the licences, this means that complete project
+(and hence any binary distributed versions) are covered by the GNU AGPL,
+rather than the less restrictive GNU GPL.
+
+
 [0]:http://mujs.com/
 [1]:https://github.com/rofl0r/rocksock
 [2]:http://www.musl-libc.org/
