@@ -485,14 +485,21 @@ conn:
 
 	char line[512+4] = {0};
 	static const char canary[4] = " 66\0";
+	time_t last_packet = time(0);
 
 	while(!want_quit) {
 		char decodebuf[512*4];
 		chk(rsirc_process(irc, line, &rcvd), goto conn);
 		if(rcvd) {
+			last_packet = time(0);
 			memcpy(line+512, canary, 4); /* protect against evil server */
 			dprintf(2, "LEN %zu - %s\n", rcvd, decode(line, decodebuf));
 			chk(read_cb(line, sizeof line), goto conn);
+		} else {
+			if(last_packet + 5*60 < time(0)) {
+				dprintf(2, "timeout occured, reconnecting\n");
+				goto conn;
+			}
 		}
 
 		usleep(10000);
