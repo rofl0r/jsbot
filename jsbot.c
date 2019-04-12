@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <mujs.h>
-//RcB: LINK "-lmujs"
+#pragma RcB2 LINK "-lmujs"
 
 #include "simplecfg.c"
 #ifndef TRANSACT_TIME

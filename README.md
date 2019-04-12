@@ -34,7 +34,7 @@ the config, when it calls its writesettings() callback.
 compilation
 -----------
 
-- install mujs, C compiler, perl (for rcb)
+- install mujs, C compiler, python2 (for rcb2)
 
 ```sh
 cd /tmp
@@ -42,9 +42,9 @@ mkdir jsbot-0000
 cd jsbot-0000/
 git clone https://github.com/rofl0r/jsbot
 git clone https://github.com/rofl0r/rocksock
-git clone https://github.com/rofl0r/rcb
-export PATH=$PATH:/tmp/jsbot-0000/rcb
-ln -s /tmp/jsbot-0000/rcb/rcb.pl /tmp/jsbot-0000/rcb/rcb
+git clone https://github.com/rofl0r/rcb2
+export PATH=$PATH:/tmp/jsbot-0000/rcb2
+ln -s /tmp/jsbot-0000/rcb2/rcb2.py /tmp/jsbot-0000/rcb2/rcb2
 cd jsbot
 
 #you may edit config.mak to override settings from Makefile
